@@ -20,22 +20,25 @@ public class REPL
 
         int lineCount = 0;
         int indentCount = 0;
+        int prevIndentCount = 0;
+        int indentDiff = 2;
         int cBracks = 0; // 波かっこ
         int sBracks = 0; // 角かっこ
         int pBracks = 0; // 丸かっこ
 
         while (true)
         {
-            //Console.Write($"{lineCount + 1}>{new string(' ', indentCount)}");
-            //Console.SetCursorPosition(Console.CursorLeft - indentCount, Console.CursorTop);
             Console.Write($"{lineCount + 1:D2}>");
-            string line = GetLine(new string(' ', indentCount));
+            string line = GetLine(new string(' ', indentCount), indentDiff);
 
             sb.AppendLine(line);
             lineCount++;
 
             // インデントの数をカウント
+            prevIndentCount = indentCount;
             indentCount = CountStr(line, " ");
+            indentDiff = indentCount - prevIndentCount > 0 ? indentCount - prevIndentCount : indentDiff;
+
             cBracks += CountStr(line, "{");
             cBracks -= CountStr(line, "}");
             sBracks += CountStr(line, "[");
@@ -50,7 +53,7 @@ public class REPL
         }
         return sb.ToString();
     }
-    private static string GetLine(string defaultText = "")
+    private static string GetLine(string defaultText = "", int indentCount = 2)
     {
         StringBuilder buffer = new(defaultText);
         int defaultCursorLeft = Console.CursorLeft + 1;
@@ -93,6 +96,11 @@ public class REPL
                     {
                         cursorPosition++; // カーソルを右に移動
                     }
+                    break;
+                case ConsoleKey.Tab:
+                    // タブキーでインデントを追加
+                    buffer.Insert(cursorPosition, new string(' ', indentCount));
+                    cursorPosition += indentCount; // カーソルを右に移動
                     break;
                 case ConsoleKey.Home:
                     cursorPosition = 0;
