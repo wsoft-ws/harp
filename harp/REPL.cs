@@ -99,8 +99,19 @@ public class REPL
                     break;
                 case ConsoleKey.Tab:
                     // タブキーでインデントを追加
-                    buffer.Insert(cursorPosition, new string(' ', indentCount));
-                    cursorPosition += indentCount; // カーソルを右に移動
+                    if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift))
+                    {
+                        if (cursorPosition >= indentCount && StartsWithBlanks(buffer, indentCount))
+                        {
+                            buffer.Remove(0, indentCount);
+                            cursorPosition -= indentCount; // カーソルを右に移動
+                        }
+                    }
+                    else
+                    {
+                        buffer.Insert(cursorPosition, new string(' ', indentCount));
+                        cursorPosition += indentCount; // カーソルを右に移動
+                    }
                     break;
                 case ConsoleKey.Home:
                     cursorPosition = 0;
@@ -123,6 +134,32 @@ public class REPL
             }
         }
         return buffer.ToString();
+    }
+    private static bool StartsWithBlanks(StringBuilder sb, int n)
+    {
+        if (sb == null)
+        {
+            return false;
+        }
+
+        if (n <= 0)
+        {
+            return true;
+        }
+
+        if (sb.Length < n)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < n; i++)
+        {
+            if (!char.IsWhiteSpace(sb[i]))
+            {
+                return false;
+            }
+        }
+        return true;
     }
     private static int CountStr(string str, string subStr)
     {
