@@ -15,6 +15,7 @@ public enum MoveLineState
 
 public class REPL
 {
+    private const string Filename = "main";
     [STAThread]
     public void Run()
     {
@@ -28,10 +29,18 @@ public class REPL
         ThrowErrorManager.NotCatch = false;
         ThrowErrorManager.ThrowError += (_, e) =>
         {
-            Console.WriteLine($"alice:{e.Script.OriginalLineNumber + 1:D2}: {e.Message}");
-            Console.WriteLine(e.Script.OriginalLine);
+            Console.WriteLine($"{e.ErrorCode}(0x{(int)e.ErrorCode:X3}): {e.Message}");
+            Console.WriteLine($"alice:{e.Script.OriginalLineNumber + 1:D2}: {e.Script.OriginalLine}  <--");
             e.Handled = true;
+
             e.Script.SkipBlock();
+            if (e.Script is not null && e.Script.StackTrace.Count > 0)
+            {
+                foreach (var stack in e.Script.StackTrace)
+                {
+                    Console.WriteLine($"  at {stack} at {stack.LineNumber + 1}");
+                }
+            }
 
             // そのスクリプトを終了する
             var tmpScript = e.Script;
@@ -53,8 +62,9 @@ public class REPL
         while (true)
         {
             string code = InputCode();
-            string scriptStr = PreProcessor.ConvertToScript(code, out var char2Line, out var defines, out var settings, "repl");
+            string scriptStr = PreProcessor.ConvertToScript(code, out var char2Line, out var defines, out var settings, Filename);
             script = script.GetChildScript(scriptStr);
+            script.Filename = Filename;
             script.Char2Line = char2Line;
             script.Defines = defines;
             script.Settings = settings;
@@ -83,6 +93,9 @@ public class REPL
         {
             Console.Write($"alice:{lineCount + 1:D2}> ");
             var (line, moveState) = GetLine(nextLine, indentCount);
+
+            Console.SetCursorPosition(0, Console.CursorTop);
+            Console.Write($"alice:{lineCount + 1:D2}: {line}");
 
             sb.AppendLine(line);
             if (lineCount >= lines.Count)
