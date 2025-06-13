@@ -19,16 +19,40 @@ public class REPL
     public void Run()
     {
         Runtime.Init();
-        int linesCountInFile = 1;
         ParsingScript script = ParsingScript.GetTopLevelScript();
 
         Interpreter.Instance.OnOutput += (_, e) => Console.Write(e.Output);
         Interpreter.Instance.OnData += (_, e) => Console.Write(e.Output);
         Interpreter.Instance.OnDebug += (_, e) => Console.WriteLine(e.Output);
 
+        ThrowErrorManager.NotCatch = false;
+        ThrowErrorManager.ThrowError += (_, e) =>
+        {
+            Console.WriteLine($"alice:{e.Script.OriginalLineNumber + 1:D2}: {e.Message}");
+            Console.WriteLine(e.Script.OriginalLine);
+            e.Handled = true;
+            e.Script.SkipBlock();
+
+            // そのスクリプトを終了する
+            var tmpScript = e.Script;
+            while (true)
+            {
+                tmpScript = tmpScript.ParentScript;
+                if (tmpScript == null || tmpScript == ParsingScript.GetTopLevelScript())
+                {
+                    return;
+                }
+                if (tmpScript == script)
+                {
+                    script.SetDone();
+                    break;
+                }
+            }
+        };
+
         while (true)
         {
-            string code = InputCode(ref linesCountInFile);
+            string code = InputCode();
             string scriptStr = PreProcessor.ConvertToScript(code, out var char2Line, out var defines, out var settings, "repl");
             script = script.GetChildScript(scriptStr);
             script.Char2Line = char2Line;
@@ -42,7 +66,7 @@ public class REPL
             }
         }
     }
-    private string InputCode(ref int linesCountInFile)
+    private string InputCode()
     {
         StringBuilder sb = new StringBuilder();
         List<string> lines = new List<string>();
@@ -57,7 +81,7 @@ public class REPL
 
         while (true)
         {
-            Console.Write($"{lineCount + linesCountInFile:D2}>");
+            Console.Write($"alice:{lineCount + 1:D2}> ");
             var (line, moveState) = GetLine(nextLine, indentCount);
 
             sb.AppendLine(line);
@@ -119,7 +143,6 @@ public class REPL
             }
         }
         Console.WriteLine();
-        linesCountInFile += lines.Count;
         return lines.Count == 0 ? string.Empty : string.Join(Environment.NewLine, lines);
     }
     /// <summary>
