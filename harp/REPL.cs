@@ -25,8 +25,10 @@ public class REPL
         while (true)
         {
             string code = InputCode(ref linesCountInFile);
-            string scriptStr = PreProcessor.ConvertToScript(code, out _, out _, out ParsingScript.ScriptSettings settings, "repl");
+            string scriptStr = PreProcessor.ConvertToScript(code, out var char2Line, out var defines, out var settings, "repl");
             script = script.GetChildScript(scriptStr);
+            script.Char2Line = char2Line;
+            script.Defines = defines;
             script.Settings = settings;
             script.OriginalScript = code;
             Variable result = script.Process();
