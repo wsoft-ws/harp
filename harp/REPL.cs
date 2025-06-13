@@ -1,6 +1,9 @@
 namespace WSOFT.AliceScript.CLI;
 
 using System.Text;
+using global::AliceScript;
+using global::AliceScript.Parsing;
+using global::AliceScript.PreProcessing;
 
 public enum MoveLineState
 {
@@ -15,14 +18,25 @@ public class REPL
     [STAThread]
     public void Run()
     {
-        Console.WriteLine("AliceScript Shell");
-        Console.WriteLine("新しいスクリプトを入力してください。");
-        Console.WriteLine("入力が完了したら、空行を入力してください。");
-        string str = InputCode();
-        Console.WriteLine("入力されたスクリプト:");
-        Console.WriteLine(str);
+        Runtime.Init();
+        int linesCountInFile = 1;
+        ParsingScript script = ParsingScript.GetTopLevelScript();
+
+        while (true)
+        {
+            string code = InputCode(ref linesCountInFile);
+            string scriptStr = PreProcessor.ConvertToScript(code, out _, out _, out ParsingScript.ScriptSettings settings, "repl");
+            script = script.GetChildScript(scriptStr);
+            script.Settings = settings;
+            script.OriginalScript = code;
+            Variable result = script.Process();
+            if (!result.IsNull())
+            {
+                Console.WriteLine(result.ToString());
+            }
+        }
     }
-    private string InputCode()
+    private string InputCode(ref int linesCountInFile)
     {
         StringBuilder sb = new StringBuilder();
         List<string> lines = new List<string>();
@@ -37,7 +51,7 @@ public class REPL
 
         while (true)
         {
-            Console.Write($"{lineCount + 1:D2}>");
+            Console.Write($"{lineCount + linesCountInFile:D2}>");
             var (line, moveState) = GetLine(nextLine, indentCount);
 
             sb.AppendLine(line);
@@ -99,6 +113,7 @@ public class REPL
             }
         }
         Console.WriteLine();
+        linesCountInFile += lines.Count;
         return lines.Count == 0 ? string.Empty : string.Join(Environment.NewLine, lines);
     }
     /// <summary>
