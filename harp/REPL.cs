@@ -209,6 +209,7 @@ public class REPL
 
         return count;
     }
+    private static readonly char[] WordSplitChars = ['{', '}', '[', ']', '(', ')', ';', ' '];
     private static (string, MoveLineState) GetLine(string defaultText = "", int indentCount = 2)
     {
         StringBuilder buffer = new(defaultText);
@@ -282,6 +283,20 @@ public class REPL
                     cursorPosition = buffer.Length;
                     break;
                 default:
+                    if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Alt) && keyInfo.Key == ConsoleKey.B)
+                    {
+                        if (cursorPosition <= 0) break;
+                        int moveTo = buffer.ToString().LastIndexOfAny(WordSplitChars, cursorPosition - 1);
+                        cursorPosition = moveTo > 0 ? moveTo : 0;
+                        break;
+                    }
+                    if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Alt) && keyInfo.Key == ConsoleKey.F)
+                    {
+                        if (cursorPosition >= buffer.Length) break;
+                        int moveTo = buffer.ToString().IndexOfAny(WordSplitChars, cursorPosition + 1);
+                        cursorPosition = moveTo > 0 ? moveTo : buffer.Length;
+                        break;
+                    }
                     if (!char.IsControl(keyInfo.KeyChar))
                     {
                         buffer.Insert(cursorPosition, keyInfo.KeyChar); // カーソル位置に文字を挿入
