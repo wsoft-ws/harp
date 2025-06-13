@@ -2,6 +2,14 @@ namespace WSOFT.AliceScript.CLI;
 
 using System.Text;
 
+public enum MoveLineState
+{
+    Up,
+    Down,
+    Enter,
+    NewLine
+}
+
 public class REPL
 {
     [STAThread]
@@ -17,50 +25,155 @@ public class REPL
     private string InputCode()
     {
         StringBuilder sb = new StringBuilder();
+        List<string> lines = new List<string>();
 
         int lineCount = 0;
         int indentCount = 0;
-        int prevIndentCount = 0;
-        int indentDiff = 2;
         int cBracks = 0; // 波かっこ
         int sBracks = 0; // 角かっこ
         int pBracks = 0; // 丸かっこ
 
+        string nextLine = new(' ', indentCount);
+
         while (true)
         {
             Console.Write($"{lineCount + 1:D2}>");
-            string line = GetLine(new string(' ', indentCount), indentDiff);
+            var (line, moveState) = GetLine(nextLine, indentCount);
 
             sb.AppendLine(line);
-            lineCount++;
+            if (lineCount >= lines.Count)
+            {
+                lines.Add(line);
+            }
+            else
+            {
+                lines[lineCount] = line;
+            }
 
             // インデントの数をカウント
-            prevIndentCount = indentCount;
             indentCount = CountStr(line, " ");
-            indentDiff = indentCount - prevIndentCount > 0 ? indentCount - prevIndentCount : indentDiff;
 
-            cBracks += CountStr(line, "{");
-            cBracks -= CountStr(line, "}");
-            sBracks += CountStr(line, "[");
-            sBracks -= CountStr(line, "]");
-            pBracks += CountStr(line, "(");
-            pBracks -= CountStr(line, ")");
+            // かっこを数える
+            cBracks += CountBrackets(line, '{', '}');
+            sBracks += CountBrackets(line, '[', ']');
+            pBracks += CountBrackets(line, '(', ')');
 
-            if (line.Trim() == "" && cBracks == 0 && sBracks == 0 && pBracks == 0)
+            if (moveState == MoveLineState.Up)
             {
-                break;
+                bool inTop = lineCount == 0;
+                lineCount = Math.Max(0, lineCount - 1);
+                nextLine = lines[lineCount];
+                // かっこの数を戻す
+                cBracks -= CountBrackets(nextLine, '{', '}');
+                sBracks -= CountBrackets(nextLine, '[', ']');
+                pBracks -= CountBrackets(nextLine, '(', ')');
+
+                if (inTop)
+                {
+                    Console.SetCursorPosition(0, Console.CursorTop);
+                    continue;
+                }
+                Console.SetCursorPosition(0, Console.CursorTop - 1);
+                continue;
+            }
+            else
+            {
+                if (lineCount + 1 >= lines.Count)
+                {
+                    if (moveState == MoveLineState.Down)
+                    {
+                        Console.SetCursorPosition(0, Console.CursorTop);
+                        continue;
+                    }
+                    // 新しい行を追加する
+                    if (moveState != MoveLineState.NewLine && cBracks == 0 && sBracks == 0 && pBracks == 0)
+                    {
+                        break;
+                    }
+                    lines.Add(new string(' ', indentCount));
+                }
+                lineCount++;
+                Console.WriteLine();
+                nextLine = lines[lineCount];
+                continue;
             }
         }
-        return sb.ToString();
+        Console.WriteLine();
+        return lines.Count == 0 ? string.Empty : string.Join(Environment.NewLine, lines);
     }
-    private static string GetLine(string defaultText = "", int indentCount = 2)
+    /// <summary>
+    /// かっこの数を数える
+    /// </summary>
+    /// <param name="str">対象の文字列</param>
+    /// <param name="openBracket">開き文字</param>
+    /// <param name="closeBracket">閉じ文字</param>
+    /// <returns>かっこの数</returns>
+    private static int CountBrackets(string str, char openBracket, char closeBracket)
+    {
+        bool inString = false;
+        bool inComment = false;
+        bool inLineComment = false;
+        int count = 0;
+
+        for (int i = 0; i < str.Length; i++)
+        {
+            char c = str[i];
+            char next = i + 1 < str.Length ? str[i + 1] : '\0';
+
+            // 文字列リテラル内かチェック
+            if (c == '"' && !inComment && !inLineComment && (i == 0 || str[i - 1] != '\\'))
+            {
+                inString = !inString;
+                continue;
+            }
+
+            // コメント内かチェック
+            if (c == '/' && next == '*' && !inString && !inComment && !inLineComment)
+            {
+                inComment = true;
+                i++;
+                continue;
+            }
+
+            if (c == '*' && next == '/' && inComment)
+            {
+                inComment = false;
+                i++;
+                continue;
+            }
+
+            if (c == '/' && next == '/' && !inString && !inComment && !inLineComment)
+            {
+                inLineComment = true;
+                i++;
+                continue;
+            }
+
+            if (c == '\n' && inLineComment)
+            {
+                inLineComment = false;
+                continue;
+            }
+
+            // 括弧のカウント
+            if (!inString && !inComment && !inLineComment)
+            {
+                if (c == openBracket) count++;
+                else if (c == closeBracket) count--;
+            }
+        }
+
+        return count;
+    }
+    private static (string, MoveLineState) GetLine(string defaultText = "", int indentCount = 2)
     {
         StringBuilder buffer = new(defaultText);
         int defaultCursorLeft = Console.CursorLeft + 1;
         int cursorPosition = defaultText.Length;
         while (true)
         {
-            Console.Write($"\x1B[{defaultCursorLeft}G\x1B[0K{buffer}\x1B[{cursorPosition + defaultCursorLeft}G");
+            int safePosition = Math.Min(cursorPosition + defaultCursorLeft, Console.BufferWidth - 1);
+            Console.Write($"\x1B[{defaultCursorLeft}G\x1B[0K{buffer}\x1B[{safePosition}G");
             // TODO: 上は可読性が最悪だがパフォーマンス上しょうがない、ようするに下と同じこと
             //Console.SetCursorPosition(defaultCursorLeft, Console.CursorTop); // カーソルを一旦行頭へ
             //Console.Write(buffer.ToString()); // バッファの内容を表示
@@ -71,7 +184,7 @@ public class REPL
             switch (keyInfo.Key)
             {
                 case ConsoleKey.Enter:
-                    break;
+                    return (buffer.ToString(), MoveLineState.Enter);
                 case ConsoleKey.Backspace:
                     if (cursorPosition > 0) // カーソルが先頭より右にある場合のみ
                     {
@@ -97,20 +210,25 @@ public class REPL
                         cursorPosition++; // カーソルを右に移動
                     }
                     break;
+                case ConsoleKey.UpArrow:
+                    return (buffer.ToString(), MoveLineState.Up);
+                case ConsoleKey.DownArrow:
+                    return (buffer.ToString(), keyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift) ? MoveLineState.NewLine : MoveLineState.Down);
                 case ConsoleKey.Tab:
                     // タブキーでインデントを追加
+                    int tabSize = indentCount > 0 ? indentCount : 2; // デフォルトのインデントサイズ
                     if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift))
                     {
-                        if (cursorPosition >= indentCount && StartsWithBlanks(buffer, indentCount))
+                        if (cursorPosition >= tabSize && StartsWithBlanks(buffer, tabSize))
                         {
-                            buffer.Remove(0, indentCount);
-                            cursorPosition -= indentCount; // カーソルを右に移動
+                            buffer.Remove(0, tabSize);
+                            cursorPosition -= tabSize; // カーソルを右に移動
                         }
                     }
                     else
                     {
-                        buffer.Insert(cursorPosition, new string(' ', indentCount));
-                        cursorPosition += indentCount; // カーソルを右に移動
+                        buffer.Insert(cursorPosition, new string(' ', tabSize));
+                        cursorPosition += tabSize; // カーソルを右に移動
                     }
                     break;
                 case ConsoleKey.Home:
@@ -127,13 +245,7 @@ public class REPL
                     }
                     break;
             }
-            if (keyInfo.Key == ConsoleKey.Enter)
-            {
-                Console.WriteLine(); // 改行
-                break; // 入力終了
-            }
         }
-        return buffer.ToString();
     }
     private static bool StartsWithBlanks(StringBuilder sb, int n)
     {
@@ -163,15 +275,9 @@ public class REPL
     }
     private static int CountStr(string str, string subStr)
     {
-        int count = 0;
-        int index = 0;
+        if (string.IsNullOrEmpty(str) || string.IsNullOrEmpty(subStr))
+            return 0;
 
-        while ((index = str.IndexOf(subStr, index)) != -1)
-        {
-            count++;
-            index += subStr.Length;
-        }
-
-        return count;
+        return (str.Length - str.Replace(subStr, "").Length) / subStr.Length;
     }
 }
