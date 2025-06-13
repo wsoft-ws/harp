@@ -22,6 +22,10 @@ public class REPL
         int linesCountInFile = 1;
         ParsingScript script = ParsingScript.GetTopLevelScript();
 
+        Interpreter.Instance.OnOutput += (_, e) => Console.Write(e.Output);
+        Interpreter.Instance.OnData += (_, e) => Console.Write(e.Output);
+        Interpreter.Instance.OnDebug += (_, e) => Console.WriteLine(e.Output);
+
         while (true)
         {
             string code = InputCode(ref linesCountInFile);
@@ -32,7 +36,7 @@ public class REPL
             script.Settings = settings;
             script.OriginalScript = code;
             Variable result = script.Process();
-            if (!result.IsNull())
+            if (result.Type != Variable.VarType.VARIABLE && result.Type != Variable.VarType.VOID)
             {
                 Console.WriteLine(result.ToString());
             }
