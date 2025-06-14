@@ -21,7 +21,7 @@ public class REPL
     {
         Runtime.Init();
         ParsingScript script = ParsingScript.GetTopLevelScript();
-
+        int ak = 0;
         Interpreter.Instance.OnOutput += (_, e) => Console.Write(e.Output);
         Interpreter.Instance.OnData += (_, e) => Console.Write(e.Output);
         Interpreter.Instance.OnDebug += (_, e) => Console.WriteLine(e.Output);
@@ -29,39 +29,45 @@ public class REPL
         ThrowErrorManager.NotCatch = false;
         ThrowErrorManager.ThrowError += (_, e) =>
         {
-            Console.WriteLine($"{e.ErrorCode}(0x{(int)e.ErrorCode:X3}): {e.Message}");
-            Console.WriteLine($"alice:{e.Script.OriginalLineNumber + 1:D2}: {e.Script.OriginalLine}  <--");
-            e.Handled = true;
+            // 問題のスクリプトを取得
+            var currentScript = e.Script;
+            while (true)
+            {
+                currentScript = currentScript.ParentScript;
+                if (currentScript == null || currentScript == script || currentScript == ParsingScript.GetTopLevelScript())
+                {
+                    break;
+                }
+            }
 
-            e.Script.SkipBlock();
+            // 終了しておく
+            currentScript?.SetDone();
+
+            Console.WriteLine($"Error : {e.ErrorCode} (0x{(int)e.ErrorCode:X3})");
+            if (!string.IsNullOrEmpty(e.Message))
+                Console.WriteLine($"        {e.Message}");
+            if (!string.IsNullOrEmpty(e.HelpLink))
+                Console.WriteLine($"   See: {e.HelpLink}");
+            Console.WriteLine($"    at: {e.Script.OriginalLine}  (line {e.Script.OriginalLineNumber + 1})");
+
             if (e.Script is not null && e.Script.StackTrace.Count > 0)
             {
+                Console.WriteLine();
+                Console.WriteLine("Stack Trace:");
                 foreach (var stack in e.Script.StackTrace)
                 {
                     Console.WriteLine($"  at {stack} at {stack.LineNumber + 1}");
                 }
             }
-
-            // そのスクリプトを終了する
-            var tmpScript = e.Script;
-            while (true)
-            {
-                tmpScript = tmpScript.ParentScript;
-                if (tmpScript == null || tmpScript == ParsingScript.GetTopLevelScript())
-                {
-                    return;
-                }
-                if (tmpScript == script)
-                {
-                    script.SetDone();
-                    break;
-                }
-            }
+            e.Handled = true;
         };
 
         while (true)
         {
+            ak = Console.CursorTop;
             string code = InputCode();
+            ak -= Console.CursorTop;
+            ak = ak * -1;
             string scriptStr = PreProcessor.ConvertToScript(code, out var char2Line, out var defines, out var settings, Filename);
             script = script.GetChildScript(scriptStr);
             script.Filename = Filename;
