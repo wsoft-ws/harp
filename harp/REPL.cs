@@ -21,7 +21,6 @@ public class REPL
     {
         Runtime.Init();
         ParsingScript script = ParsingScript.GetTopLevelScript();
-        int ak = 0;
         Interpreter.Instance.OnOutput += (_, e) => Console.Write(e.Output);
         Interpreter.Instance.OnData += (_, e) => Console.Write(e.Output);
         Interpreter.Instance.OnDebug += (_, e) => Console.WriteLine(e.Output);
@@ -29,19 +28,8 @@ public class REPL
         ThrowErrorManager.NotCatch = false;
         ThrowErrorManager.ThrowError += (_, e) =>
         {
-            // 問題のスクリプトを取得
-            var currentScript = e.Script;
-            while (true)
-            {
-                currentScript = currentScript.ParentScript;
-                if (currentScript == null || currentScript == script || currentScript == ParsingScript.GetTopLevelScript())
-                {
-                    break;
-                }
-            }
-
-            // 終了しておく
-            currentScript?.SetDone();
+            // スクリプトを終了する
+            script.SetDone();
 
             Console.WriteLine($"Error : {e.ErrorCode} (0x{(int)e.ErrorCode:X3})");
             if (!string.IsNullOrEmpty(e.Message))
@@ -62,25 +50,48 @@ public class REPL
             e.Handled = true;
         };
 
+        if (Console.IsInputRedirected)
+        {
+            string code = ReadConsoleToEnd();
+            ExecuteAndPrint(code, ref script);
+            return;
+        }
         while (true)
         {
-            ak = Console.CursorTop;
             string code = InputCode();
-            ak -= Console.CursorTop;
-            ak = ak * -1;
-            string scriptStr = PreProcessor.ConvertToScript(code, out var char2Line, out var defines, out var settings, Filename);
-            script = script.GetChildScript(scriptStr);
-            script.Filename = Filename;
-            script.Char2Line = char2Line;
-            script.Defines = defines;
-            script.Settings = settings;
-            script.OriginalScript = code;
-            Variable result = script.Process();
-            if (result.Type != Variable.VarType.VARIABLE && result.Type != Variable.VarType.VOID)
-            {
-                Console.WriteLine(result.ToString());
-            }
+            ExecuteAndPrint(code, ref script);
         }
+    }
+    private static void ExecuteAndPrint(string code, ref ParsingScript script)
+    {
+        script = GetChildScript(script, code);
+        Variable result = script.Process();
+        if (result.Type != Variable.VarType.VARIABLE && result.Type != Variable.VarType.VOID)
+        {
+            Console.WriteLine(result.ToString());
+        }
+    }
+    private static string ReadConsoleToEnd()
+    {
+        StringBuilder sb = new StringBuilder();
+        string? line;
+        while ((line = Console.ReadLine()) != null)
+        {
+            sb.AppendLine(line);
+        }
+        return sb.ToString();
+    }
+    private static ParsingScript GetChildScript(ParsingScript parent, string code)
+    {
+        string scriptStr = PreProcessor.ConvertToScript(code, out var char2Line, out var defines, out var settings, Filename);
+        ParsingScript script = parent.GetChildScript(scriptStr);
+        script = script.GetChildScript(scriptStr);
+        script.Filename = Filename;
+        script.Char2Line = char2Line;
+        script.Defines = defines;
+        script.Settings = settings;
+        script.OriginalScript = code;
+        return script;
     }
     private string InputCode()
     {
