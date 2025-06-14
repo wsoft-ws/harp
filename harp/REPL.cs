@@ -130,7 +130,7 @@ public class REPL
                     Console.SetCursorPosition(0, Console.CursorTop);
                     continue;
                 }
-                Console.SetCursorPosition(0, Console.CursorTop - 1);
+                Console.SetCursorPosition(0, Math.Max(Console.CursorTop - 1, 0));
                 continue;
             }
             else
@@ -222,7 +222,7 @@ public class REPL
 
         return count;
     }
-    private static readonly char[] WordSplitChars = ['{', '}', '[', ']', '(', ')', ';', ' '];
+    private static readonly char[] WordSplitChars = Constants.TOKEN_SEPARATION;
     private static (string, MoveLineState) GetLine(string defaultText = "", int indentCount = 2)
     {
         StringBuilder buffer = new(defaultText);
