@@ -21,6 +21,7 @@ public class REPL
     {
         Runtime.Init();
         ParsingScript script = ParsingScript.GetTopLevelScript();
+        Interpreter.Instance.DebugMode = true;
         Interpreter.Instance.OnOutput += (_, e) => Console.Write(e.Output);
         Interpreter.Instance.OnData += (_, e) => Console.Write(e.Output);
         Interpreter.Instance.OnDebug += (_, e) => Console.WriteLine(e.Output);
@@ -28,6 +29,13 @@ public class REPL
         ThrowErrorManager.NotCatch = false;
         ThrowErrorManager.ThrowError += (_, e) =>
         {
+            if (e.ErrorCode == Exceptions.BREAK_POINT)
+            {
+                EncounteredBreakPoint(e);
+                e.Handled = true;
+                return;
+            }
+
             // スクリプトを終了する
             script.SetDone();
 
@@ -61,6 +69,11 @@ public class REPL
             string code = InputCode();
             ExecuteAndPrint(code, ref script);
         }
+    }
+    private static void EncounteredBreakPoint(ThrowErrorEventArgs e)
+    {
+        Console.WriteLine("Encountered a breakpoint.");
+        Console.ReadKey(true);
     }
     private static void ExecuteAndPrint(string code, ref ParsingScript script)
     {
@@ -313,21 +326,23 @@ public class REPL
                     cursorPosition = buffer.Length;
                     break;
                 default:
-                    if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Alt) && keyInfo.Key == ConsoleKey.B)
+                    if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Alt))
                     {
-                        if (cursorPosition <= 0) break;
-                        int moveTo = buffer.ToString().LastIndexOfAny(WordSplitChars, cursorPosition - 1);
-                        cursorPosition = moveTo > 0 ? moveTo : 0;
-                        break;
+                        switch (keyInfo.Key)
+                        {
+                            case ConsoleKey.LeftArrow:
+                                if (cursorPosition <= 0) break;
+                                int moveToLeft = buffer.ToString().LastIndexOfAny(WordSplitChars, cursorPosition - 1);
+                                cursorPosition = moveToLeft > 0 ? moveToLeft : 0;
+                                break;
+                            case ConsoleKey.RightArrow:
+                                if (cursorPosition >= buffer.Length) break;
+                                int moveToRight = buffer.ToString().IndexOfAny(WordSplitChars, cursorPosition + 1);
+                                cursorPosition = moveToRight > 0 ? moveToRight : buffer.Length;
+                                break;
+                        }
                     }
-                    if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Alt) && keyInfo.Key == ConsoleKey.F)
-                    {
-                        if (cursorPosition >= buffer.Length) break;
-                        int moveTo = buffer.ToString().IndexOfAny(WordSplitChars, cursorPosition + 1);
-                        cursorPosition = moveTo > 0 ? moveTo : buffer.Length;
-                        break;
-                    }
-                    if (!char.IsControl(keyInfo.KeyChar))
+                    else if (!char.IsControl(keyInfo.KeyChar))
                     {
                         buffer.Insert(cursorPosition, keyInfo.KeyChar); // カーソル位置に文字を挿入
                         cursorPosition++; // カーソルを右に移動
