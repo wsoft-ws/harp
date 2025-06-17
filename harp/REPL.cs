@@ -72,8 +72,30 @@ public class REPL
     }
     private static void EncounteredBreakPoint(ThrowErrorEventArgs e)
     {
-        Console.WriteLine("Encountered a breakpoint.");
-        Console.ReadKey(true);
+        switch (Console.ReadKey(true).KeyChar)
+        {
+            case 'o':
+            case 'O':
+                // スクリプトを続行する
+                e.Script.SetDone();
+                Console.WriteLine("Continuing script execution...");
+                return;
+            case 'l':
+            case 'L':
+                while (true)
+                {
+                    var result = e.Script.ProcessStatement();
+                    if (!e.Script.StillValid())
+                    {
+                        return;
+                    }
+                }
+                return;
+            default:
+                // スクリプトを終了する
+                Console.WriteLine("Exiting script execution...");
+                return;
+        }
     }
     private static void ExecuteAndPrint(string code, ref ParsingScript script)
     {
@@ -108,7 +130,6 @@ public class REPL
     }
     private string InputCode()
     {
-        StringBuilder sb = new StringBuilder();
         List<string> lines = new List<string>();
 
         int lineCount = 0;
@@ -127,7 +148,6 @@ public class REPL
             Console.SetCursorPosition(0, Console.CursorTop);
             Console.Write($"alice:{lineCount + 1:D2}: {line}");
 
-            sb.AppendLine(line);
             if (lineCount >= lines.Count)
             {
                 lines.Add(line);
