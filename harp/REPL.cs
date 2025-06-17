@@ -278,9 +278,28 @@ public class REPL
         StringBuilder buffer = new(defaultText);
         int defaultCursorLeft = Console.CursorLeft + 1;
         int cursorPosition = defaultText.Length;
+
+        int GetDisplayWidth(string text)
+        {
+            int width = 0;
+            foreach (char c in text)
+            {
+                // 全角文字かどうかを判定
+                width += IsFullWidth(c) ? 2 : 1;
+            }
+            return width;
+        }
+
+        // 指定位置までの表示幅を計算
+        int GetDisplayPositionWidth(StringBuilder sb, int position)
+        {
+            return GetDisplayWidth(sb.ToString(0, position));
+        }
+
         while (true)
         {
-            int safePosition = Math.Min(cursorPosition + defaultCursorLeft, Console.BufferWidth - 1);
+            int displayWidth = GetDisplayPositionWidth(buffer, cursorPosition);
+            int safePosition = Math.Min(defaultCursorLeft + displayWidth, Console.BufferWidth - 1);
             Console.Write($"\x1B[{defaultCursorLeft}G\x1B[0K{buffer}\x1B[{safePosition}G");
             // TODO: 上は可読性が最悪だがパフォーマンス上しょうがない、ようするに下と同じこと
             //Console.SetCursorPosition(defaultCursorLeft, Console.CursorTop); // カーソルを一旦行頭へ
@@ -370,6 +389,34 @@ public class REPL
                     break;
             }
         }
+    }
+    /// <summary>
+    /// 全角文字かどうかを判定する
+    /// </summary>
+    /// <param name="c">対象の文字</param>
+    /// <returns>全角であればtrue、そうでなければfalse</returns>
+    private static bool IsFullWidth(char c)
+    {
+        return
+            (c >= '\u1100' && c <= '\u115F') || // Hangul Jamo
+            (c >= '\u2E80' && c <= '\u2FFF') || // CJK部首補助～康熙部首
+            (c >= '\u3000' && c <= '\u303F') || // CJK記号と句読点
+            (c >= '\u3040' && c <= '\u309F') || // ひらがな
+            (c >= '\u30A0' && c <= '\u30FF') || // カタカナ
+            (c >= '\u3100' && c <= '\u312F') || // 注音字母
+            (c >= '\u3130' && c <= '\u318F') || // ハングル互換字母
+            (c >= '\u3190' && c <= '\u319F') || // かなの補助
+            (c >= '\u31A0' && c <= '\u31BF') || // 注音字母拡張
+            (c >= '\u31F0' && c <= '\u31FF') || // カタカナ拡張
+            (c >= '\u3200' && c <= '\u32FF') || // 囲みCJK文字
+            (c >= '\u3300' && c <= '\u33FF') || // CJK互換文字
+            (c >= '\u3400' && c <= '\u4DBF') || // CJK統合漢字拡張A
+            (c >= '\u4E00' && c <= '\u9FFF') || // CJK統合漢字
+            (c >= '\uA000' && c <= '\uA48F') || // イ族音節
+            (c >= '\uA490' && c <= '\uA4CF') || // イ族部首
+            (c >= '\uAC00' && c <= '\uD7AF') || // ハングル音節
+            (c >= '\uF900' && c <= '\uFAFF') || // CJK互換漢字
+            (c >= '\uFF00' && c <= '\uFFEF');   // 全角形
     }
     private static bool StartsWithBlanks(StringBuilder sb, int n)
     {
